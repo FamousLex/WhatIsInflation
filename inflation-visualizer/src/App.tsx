@@ -8,8 +8,17 @@ const App: React.FC = () => {
   const [salary, setSalary] = useState<number | ''>('');
   const [adjustedSalary, setAdjustedSalary] = useState<string | null>(null);
   const [inflationDisplay, setInflationDisplay] = useState<string | null>(null);
+  const [groceryPrices, setGroceryPrices] = useState<any[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>('M01');
   const [selectedYear, setSelectedYear] = useState<string>('2024');
+
+  const groceryItems =[
+    { name: "Eggs (dozen)", price: 3.50},
+    { name: "Milk (1 gallon)", price: 4.00},
+    { name: "Bacon (1 lb)", price: 6.50},
+    { name: "Bread (loaf)", price: 3.00},
+    { name: "Gasoline (1 gallon)", price: 3.80}
+  ]
 
   const months = [
     { value: 'M01', label: 'January' },
@@ -26,7 +35,9 @@ const App: React.FC = () => {
     { value: 'M12', label: 'December' },
   ];
 
-  const years = Array.from({ length: 10 }, (_, i) => `${2015 + i}`);
+  const currentYear = new Date().getFullYear(); // Get the current year dynamically (2025)
+  const years = Array.from({ length: currentYear - 2015 + 1 }, (_, i) => `${2015 + i}`);
+
 
   const fetchData = async () => {
     setLoading(true);
@@ -34,7 +45,7 @@ const App: React.FC = () => {
       const response = await axios.post('http://localhost:5000/calculate_inflation', {
         series_id: 'CUUR0000SA0',
         start_year: '2015',
-        end_year: '2024',
+        end_year: '2025',
       });
 
       const dataArray = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
@@ -47,6 +58,9 @@ const App: React.FC = () => {
 
         // Perform inflation comparison for salary
         calculateAdjustedSalary(dataArray);
+
+        // Calculate grocery price inflation
+        calculateGroceryPrices(dataArray);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -107,9 +121,45 @@ const App: React.FC = () => {
     }
   };
 
+  const calculateGroceryPrices = (dataArray: any[]) => {
+
+    let cumulativeInflation = 1;
+    let year = parseInt(selectedYear);
+    let monthIndex = months.findIndex(m => m.value === selectedMonth); // Get index of selected month
+
+    while (year < 2025) {
+      while (monthIndex < 12) {
+        const monthValue = `M${(monthIndex + 1).toString().padStart(2, '0')}`;
+
+        // Stop when reaching January 2025
+        if (year === 2025 && monthValue === "M01") break;
+
+        const entry = dataArray.find((item) => item.year === `${year}` && item.period === monthValue);
+        if (entry && entry.inflation_rate_monthly !== undefined) {
+          cumulativeInflation *= (1 + entry.inflation_rate_monthly / 100);
+        }
+
+        monthIndex++;
+
+        if (monthIndex === 12) {
+          monthIndex = 0;
+          year++;
+        }
+      }
+    }
+
+    const updatedPrices = groceryItems.map((item) => ({
+      name: item.name,
+      currentPrice: `$${item.price.toFixed(2)}`,
+      pastPrice: `$${(item.price / cumulativeInflation).toFixed(2)}`
+    }));
+
+      setGroceryPrices(updatedPrices);
+  };
+
   return (
     <div className="container">
-      <h1>Inflation Visualizer</h1>
+      <h1>What Is Inflation?</h1>
 
       <div className="filters">
         <label>
@@ -171,6 +221,29 @@ const App: React.FC = () => {
               <span key={index}>{line} <br /></span>
             ))}</p>
           )}
+        </div>
+
+        {/* Grocery Prices Grid Box */}
+        <div className="grid-box">
+          <h2>Everyday Goods</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Today</th>
+                <th>{`${months.find(m => m.value === selectedMonth)?.label} ${selectedYear}`}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groceryPrices.map((item, index) => (
+                <tr key={index}>
+                  <td>{item.name}</td>
+                  <td>{item.currentPrice}</td>
+                  <td>{item.pastPrice}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
