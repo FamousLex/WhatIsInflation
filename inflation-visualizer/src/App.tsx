@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import './App.css';
+import InflationChart from './InflationChart';
 
 const App: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
@@ -35,9 +36,9 @@ const App: React.FC = () => {
     { value: 'M12', label: 'December' },
   ];
 
-  const currentYear = new Date().getFullYear(); // Get the current year dynamically (2025)
+  const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 2015 + 1 }, (_, i) => `${2015 + i}`);
-
+  const [inflationData, setInflationData] = useState<any[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -53,14 +54,21 @@ const App: React.FC = () => {
       if (Array.isArray(dataArray)) {
         setData(dataArray);
 
-        // Update inflation display for the selected month/year
         displayInflationRates(dataArray);
 
-        // Perform inflation comparison for salary
         calculateAdjustedSalary(dataArray);
 
-        // Calculate grocery price inflation
         calculateGroceryPrices(dataArray);
+
+        const selectedYearInflation = dataArray
+          .filter(item => item.year === selectedYear)
+          .map(item => ({
+            month: months.find(m => m.value === item.period)?.label || item.period,
+            inflation: item.inflation_rate_monthly,
+            year: selectedYear
+          }));
+
+          setInflationData(selectedYearInflation);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -125,13 +133,12 @@ const App: React.FC = () => {
 
     let cumulativeInflation = 1;
     let year = parseInt(selectedYear);
-    let monthIndex = months.findIndex(m => m.value === selectedMonth); // Get index of selected month
+    let monthIndex = months.findIndex(m => m.value === selectedMonth);
 
     while (year < 2025) {
       while (monthIndex < 12) {
         const monthValue = `M${(monthIndex + 1).toString().padStart(2, '0')}`;
 
-        // Stop when reaching January 2025
         if (year === 2025 && monthValue === "M01") break;
 
         const entry = dataArray.find((item) => item.year === `${year}` && item.period === monthValue);
@@ -244,6 +251,11 @@ const App: React.FC = () => {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Inflation Chart Grid Box */}
+        <div className="grid-box">
+          <InflationChart data ={inflationData} />
         </div>
       </div>
     </div>
