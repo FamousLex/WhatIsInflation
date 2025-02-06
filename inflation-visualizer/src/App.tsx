@@ -1,17 +1,24 @@
-import React, { useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import axios from 'axios';
 import './App.css';
 import InflationChart from './InflationChart';
 
 const App: React.FC = () => {
+  const today = new Date();
+  const currentMonth = `M${(today.getMonth() + 1).toString().padStart(2, '0')}`;
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: currentYear - 2015 + 1 }, (_, i) => `${2015 + i}`);
+
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [selectedYear, setSelectedYear] = useState<string>('');
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [salary, setSalary] = useState<number | ''>('');
   const [adjustedSalary, setAdjustedSalary] = useState<string | null>(null);
   const [inflationDisplay, setInflationDisplay] = useState<string | null>(null);
   const [groceryPrices, setGroceryPrices] = useState<any[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState<string>('M01');
-  const [selectedYear, setSelectedYear] = useState<string>('2024');
+  
+  
 
   const groceryItems =[
     { name: "Eggs (dozen)", price: 3.50},
@@ -36,8 +43,10 @@ const App: React.FC = () => {
     { value: 'M12', label: 'December' },
   ];
 
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: currentYear - 2015 + 1 }, (_, i) => `${2015 + i}`);
+  useEffect(() => {
+    fetchData();
+  }, []);
+  
   const [inflationData, setInflationData] = useState<any[]>([]);
 
   const fetchData = async () => {
@@ -54,22 +63,32 @@ const App: React.FC = () => {
       if (Array.isArray(dataArray)) {
         setData(dataArray);
 
-        displayInflationRates(dataArray);
+      const latestEntry = dataArray.sort((a,b ) =>
+        `${b.year}${b.period}`.localeCompare(`${a.year}${a.period}`)
+      )[0];
 
-        calculateAdjustedSalary(dataArray);
 
-        calculateGroceryPrices(dataArray);
+      setSelectedYear(prevYear => prevYear || latestEntry.year);
+      setSelectedMonth(prevMonth => prevMonth || latestEntry.period);
+           
+      displayInflationRates(dataArray, selectedYear || latestEntry.year, selectedMonth || latestEntry.period);
 
-        const selectedYearInflation = dataArray
-          .filter(item => item.year === selectedYear)
-          .map(item => ({
-            month: months.find(m => m.value === item.period)?.label || item.period,
-            inflation: item.inflation_rate_monthly,
-            year: selectedYear
-          }));
+      calculateAdjustedSalary(dataArray);
 
-          setInflationData(selectedYearInflation);
-      }
+      calculateGroceryPrices(dataArray);
+
+      const selectedYearInflation = dataArray
+        .filter(item => item.year === (selectedYear || latestEntry.year))
+        .map(item => ({
+          month: months.find(m => m.value === item.period)?.label || item.period,
+          inflation: item.inflation_rate_monthly,
+          year: selectedYear || latestEntry.year
+        }))
+        .sort((a, b) => months.findIndex(m => m.label === a.month) - months.findIndex(m => m.label === b.month));
+
+        setInflationData(selectedYearInflation);
+
+     }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -77,14 +96,14 @@ const App: React.FC = () => {
     }
   };
 
-  const displayInflationRates = (dataArray: any[]) => {
+  const displayInflationRates = (dataArray: any[], year: string, month: string) => {
     const selectedEntry = dataArray.find(
-      (item) => item.year === selectedYear && item.period === selectedMonth
+      (item) => item.year === year && item.period === month
     );
 
     if (selectedEntry) {
       setInflationDisplay(
-        `${months.find(m => m.value === selectedMonth)?.label} ${selectedYear} Inflation:
+        `${months.find(m => m.value === month)?.label} ${year} Inflation:
         \n- Monthly Rate: ${selectedEntry.inflation_rate_monthly?.toFixed(2)}%
         \n- Yearly Rate: ${selectedEntry.inflation_rate_yearly?.toFixed(2)}%`
       );
